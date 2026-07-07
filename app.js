@@ -373,6 +373,7 @@ function getZoneCode(filename){
 
 function updateZoneSummary(originals){
   if(!els.zoneSummaryBody) return;
+  const zoneCardsEl = document.getElementById("zoneOverviewCards");
   const zones = Array.from({length:13}, (_, i) => String(i).padStart(2, "0"));
   const summary = Object.fromEntries(zones.map(z => [z, { total:0, signed:0, unsigned:0 }]));
 
@@ -383,6 +384,19 @@ function updateZoneSummary(originals){
     if(file.hasSignedCopy) summary[zone].signed += 1;
     else summary[zone].unsigned += 1;
   });
+
+  if(zoneCardsEl){
+    zoneCardsEl.innerHTML = zones.map(zone => {
+      const item = summary[zone];
+      const percent = item.total ? (item.signed / item.total) * 100 : 0;
+      return `<button class="zone-mini-card" type="button" data-zone="${zone}" title="กรองเขต ${zone}">
+        <div class="zone-mini-top"><span class="zone-mini-code">เขต ${zone}</span><span class="zone-mini-percent">${percent.toFixed(0)}%</span></div>
+        <div class="zone-mini-stats"><span>ทั้งหมด <b>${item.total.toLocaleString("th-TH")}</b></span><span>เซ็นแล้ว <b>${item.signed.toLocaleString("th-TH")}</b></span><span>คงเหลือ <b>${item.unsigned.toLocaleString("th-TH")}</b></span></div>
+        <div class="zone-mini-bar"><span style="width:${percent.toFixed(2)}%"></span></div>
+      </button>`;
+    }).join("");
+    zoneCardsEl.querySelectorAll(".zone-mini-card").forEach(btn => btn.addEventListener("click", () => filterByZone(btn.dataset.zone)));
+  }
 
   const rows = zones.map(zone => {
     const item = summary[zone];
