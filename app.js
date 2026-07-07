@@ -11,6 +11,7 @@ let signedFiles = [];
 let signedFolderId = null;
 let currentFile = null;
 let currentPdfBytes = null;
+let autoLoginAttempted = false;
 let pdfDoc = null;
 let pageNum = 1;
 let pageCount = 0;
@@ -19,7 +20,7 @@ let signaturePad;
 const $ = (id) => document.getElementById(id);
 const els = {
   loginBtn: $("loginBtn"), logoutBtn: $("logoutBtn"), userStatus: $("userStatus"),
-  loadFilesBtn: $("loadFilesBtn"), searchInput: $("searchInput"), clearSearchBtn: $("clearSearchBtn"), statusFilter: $("statusFilter"),
+  loadFilesBtn: $("loadFilesBtn"), refreshFilesBtn: $("refreshFilesBtn"), searchInput: $("searchInput"), clearSearchBtn: $("clearSearchBtn"), statusFilter: $("statusFilter"),
   fileList: $("fileList"), currentFileName: $("currentFileName"), docStatus: $("docStatus"),
   pdfCanvas: $("pdfCanvas"), signatureCanvas: $("signatureCanvas"), prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"), pageInfo: $("pageInfo"), signPageInput: $("signPageInput"),
@@ -39,6 +40,7 @@ function bindEvents(){
   els.loginBtn.addEventListener("click", login);
   els.logoutBtn.addEventListener("click", logout);
   els.loadFilesBtn.addEventListener("click", loadFiles);
+  if(els.refreshFilesBtn) els.refreshFilesBtn.addEventListener("click", refreshFiles);
   els.searchInput.addEventListener("input", renderFiles);
   els.clearSearchBtn.addEventListener("click", clearSearch);
   els.statusFilter.addEventListener("change", renderFiles);
@@ -80,7 +82,8 @@ function loadGapi(){
   gapi.load("client", async () => {
     await gapi.client.init({ discoveryDocs: [CONFIG.DISCOVERY_DOC] });
     gapiReady = true;
-    setButtons(false);
+    setButtons(isLoggedIn());
+    maybeAutoLogin();
   });
 }
 function waitForGIS(){
@@ -93,25 +96,48 @@ function waitForGIS(){
         callback: (tokenResponse) => {
           if(tokenResponse && tokenResponse.access_token){
             accessToken = tokenResponse.access_token;
+            localStorage.setItem("canenext_login_active", "1");
             gapi.client.setToken({ access_token: accessToken });
             els.userStatus.textContent = "เข้าสู่ระบบแล้ว";
             els.loginBtn.classList.add("hidden");
             els.logoutBtn.classList.remove("hidden");
             setButtons(true);
-            toast("เข้าสู่ระบบสำเร็จ");
+            toast(tokenResponse.prompt === "none" ? "กลับเข้าสู่ระบบอัตโนมัติ" : "เข้าสู่ระบบสำเร็จ");
             loadFiles();
           }
         }
       });
       gisReady = true;
-      setButtons(false);
+      setButtons(isLoggedIn());
+      maybeAutoLogin();
     }
   }, 200);
 }
-function setButtons(isLoggedIn){
-  els.loginBtn.disabled = !(gapiReady && gisReady) || isLoggedIn;
-  els.loadFilesBtn.disabled = !isLoggedIn;
-  els.saveSignedBtn.disabled = !isLoggedIn || !currentFile;
+function isLoggedIn(){
+  return !!accessToken;
+}
+
+function setButtons(loggedIn){
+  const ready = gapiReady && gisReady;
+  els.loginBtn.disabled = !ready || loggedIn;
+  els.loadFilesBtn.disabled = !loggedIn;
+  if(els.refreshFilesBtn) els.refreshFilesBtn.disabled = !loggedIn;
+  els.saveSignedBtn.disabled = !loggedIn || !currentFile;
+}
+
+function maybeAutoLogin(){
+  if(autoLoginAttempted || !gapiReady || !gisReady || !tokenClient) return;
+  if(localStorage.getItem("canenext_login_active") !== "1") return;
+  autoLoginAttempted = true;
+  els.userStatus.textContent = "กำลังตรวจสอบการเข้าสู่ระบบ...";
+  try{
+    // ขอ token ใหม่แบบเงียบหลัง Refresh หน้าเว็บ หาก Google session ยังใช้งานอยู่
+    tokenClient.requestAccessToken({ prompt: "" });
+  }catch(err){
+    console.warn("Auto login failed", err);
+    els.userStatus.textContent = "กรุณาเข้าสู่ระบบ";
+    localStorage.removeItem("canenext_login_active");
+  }
 }
 function login(){
   if(!tokenClient){ toast("Google API ยังโหลดไม่เสร็จ"); return; }
@@ -119,11 +145,18 @@ function login(){
 }
 function logout(){
   if(accessToken) google.accounts.oauth2.revoke(accessToken);
+  localStorage.removeItem("canenext_login_active");
   accessToken = null; gapi.client.setToken(null);
   pdfFiles = []; originalFiles = []; signedFiles = []; signedFolderId = null; currentFile = null; currentPdfBytes = null; pdfDoc = null;
   els.userStatus.textContent = "ออกจากระบบแล้ว";
   els.loginBtn.classList.remove("hidden"); els.logoutBtn.classList.add("hidden");
   setButtons(false); renderFiles(); updateSummary(); clearViewer(); toast("ออกจากระบบแล้ว");
+}
+
+async function refreshFiles(){
+  if(!accessToken){ toast("กรุณาเข้าสู่ระบบก่อน"); return; }
+  toast("กำลังรีเฟรชรายการเอกสาร...");
+  await loadFiles();
 }
 
 async function loadFiles(){
@@ -284,15 +317,15 @@ async function saveSignedPdf(){
     const doc = await PDFDocument.load(currentPdfBytes.slice(0));
     const png = await doc.embedPng(signaturePad.toDataURL("image/png"));
     const pages = doc.getPages();
-    // ฝังลายเซ็นที่หน้าสุดท้ายเสมอ และจัดชิดมุมขวาล่างสุดของกระดาษ
-    // หมายเหตุ: ระบบพิกัดของ PDF เริ่มจากมุมซ้ายล่าง ดังนั้น y = 0 คือขอบล่างสุด
-    const page = pages[pages.length - 1];
+    // ฝังลายเซ็นที่หน้าแรกเสมอ และจัดชิดมุมขวาบนสุดของกระดาษ
+    // หมายเหตุ: ระบบพิกัดของ PDF เริ่มจากมุมซ้ายล่าง ดังนั้น y = height - sigH คือขอบบนสุด
+    const page = pages[0];
     const { width, height } = page.getSize();
     const sigW = 150;
     const sigH = 55;
     const edgeOffset = 0;
     const x = Math.max(0, width - sigW - edgeOffset);
-    const y = edgeOffset;
+    const y = Math.max(0, height - sigH - edgeOffset);
     page.drawImage(png, { x, y, width: sigW, height: sigH });
     const signedBytes = await doc.save();
     if(!signedFolderId) signedFolderId = await ensureSignedFolder();
