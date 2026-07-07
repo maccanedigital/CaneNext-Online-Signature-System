@@ -36,8 +36,25 @@
         <button id="loadFilesBtn" class="btn primary">ดึงไฟล์ PDF</button>
         <button id="refreshFilesBtn" class="btn ghost" type="button">รีเฟรชรายการ</button>
         <input id="searchInput" type="search" placeholder="ค้นหาชื่อไฟล์ PDF" />
+        <select id="zoneFilter" title="กรองตามเขต">
+          <option value="all">ทุกเขต</option>
+          <option value="00">เขต 00</option>
+          <option value="01">เขต 01</option>
+          <option value="02">เขต 02</option>
+          <option value="03">เขต 03</option>
+          <option value="04">เขต 04</option>
+          <option value="05">เขต 05</option>
+          <option value="06">เขต 06</option>
+          <option value="07">เขต 07</option>
+          <option value="08">เขต 08</option>
+          <option value="09">เขต 09</option>
+          <option value="10">เขต 10</option>
+          <option value="11">เขต 11</option>
+          <option value="12">เขต 12</option>
+          <option value="ไม่ระบุ">ไม่ระบุเขต</option>
+        </select>
         <button id="clearSearchBtn" class="btn ghost" type="button">ล้างการค้นหา</button>
-        <select id="statusFilter">
+        <select id="statusFilter" class="hidden" aria-hidden="true">
           <option value="all">ทั้งหมด</option>
           <option value="unsigned">ยังไม่เซ็น</option>
           <option value="signed">เซ็นแล้ว</option>
@@ -47,6 +64,12 @@
       <div class="content-grid">
         <aside class="panel file-panel">
           <h2>รายการเอกสาร PDF</h2>
+          <div class="doc-filter-tabs" role="tablist" aria-label="ตัวกรองสถานะเอกสาร">
+            <button class="doc-filter active" type="button" data-status="all">ทั้งหมด <span id="tabAllCount">0</span></button>
+            <button class="doc-filter" type="button" data-status="signed">เซ็นแล้ว <span id="tabSignedCount">0</span></button>
+            <button class="doc-filter" type="button" data-status="unsigned">ยังไม่เซ็น <span id="tabUnsignedCount">0</span></button>
+          </div>
+          <div id="fileListInfo" class="file-list-info">แสดงเอกสารทั้งหมด</div>
           <div id="fileList" class="file-list empty">กรุณาเข้าสู่ระบบ แล้วกดดึงไฟล์ PDF</div>
         </aside>
 
@@ -90,6 +113,29 @@
         <div class="summary-card"><div>เซ็นแล้ว</div><strong id="signedCount">0</strong></div>
         <div class="summary-card"><div>คงเหลือ</div><strong id="unsignedCount">0</strong></div>
       </div>
+      <div class="panel zone-panel">
+        <div class="zone-header">
+          <h2>สรุปสถานะเอกสารแยกรายเขต</h2>
+          <span class="zone-note">อ้างอิงจากตัวเลข 2 ตัวแรกของชื่อไฟล์</span>
+        </div>
+        <div class="zone-table-wrap">
+          <table class="zone-table">
+            <thead>
+              <tr>
+                <th>เขต</th>
+                <th>ไฟล์ทั้งหมด</th>
+                <th>เซ็นแล้ว</th>
+                <th>คงเหลือ</th>
+                <th>ความก้าวหน้า</th>
+              </tr>
+            </thead>
+            <tbody id="zoneSummaryBody">
+              <tr><td colspan="5" class="empty-cell">ยังไม่มีข้อมูล</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
       <div class="panel">
         <h2>รายการที่ยังไม่เซ็น</h2>
         <div id="unsignedList" class="file-list empty">ยังไม่มีข้อมูล</div>

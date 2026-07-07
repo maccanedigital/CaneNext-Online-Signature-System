@@ -16,16 +16,17 @@ let pdfDoc = null;
 let pageNum = 1;
 let pageCount = 0;
 let signaturePad;
+let activeDocStatus = "all";
 
 const $ = (id) => document.getElementById(id);
 const els = {
   loginBtn: $("loginBtn"), logoutBtn: $("logoutBtn"), userStatus: $("userStatus"),
-  loadFilesBtn: $("loadFilesBtn"), refreshFilesBtn: $("refreshFilesBtn"), searchInput: $("searchInput"), clearSearchBtn: $("clearSearchBtn"), statusFilter: $("statusFilter"),
+  loadFilesBtn: $("loadFilesBtn"), refreshFilesBtn: $("refreshFilesBtn"), searchInput: $("searchInput"), clearSearchBtn: $("clearSearchBtn"), statusFilter: $("statusFilter"), zoneFilter: $("zoneFilter"), fileListInfo: $("fileListInfo"), tabAllCount: $("tabAllCount"), tabSignedCount: $("tabSignedCount"), tabUnsignedCount: $("tabUnsignedCount"),
   fileList: $("fileList"), currentFileName: $("currentFileName"), docStatus: $("docStatus"),
   pdfCanvas: $("pdfCanvas"), signatureCanvas: $("signatureCanvas"), prevPageBtn: $("prevPageBtn"),
   nextPageBtn: $("nextPageBtn"), pageInfo: $("pageInfo"), signPageInput: $("signPageInput"),
   signaturePosition: $("signaturePosition"), clearSigBtn: $("clearSigBtn"), saveSignedBtn: $("saveSignedBtn"),
-  totalCount: $("totalCount"), signedCount: $("signedCount"), unsignedCount: $("unsignedCount"), unsignedList: $("unsignedList"), toast: $("toast")
+  totalCount: $("totalCount"), signedCount: $("signedCount"), unsignedCount: $("unsignedCount"), unsignedList: $("unsignedList"), zoneSummaryBody: $("zoneSummaryBody"), toast: $("toast")
 };
 
 window.addEventListener("load", () => {
@@ -43,7 +44,14 @@ function bindEvents(){
   if(els.refreshFilesBtn) els.refreshFilesBtn.addEventListener("click", refreshFiles);
   els.searchInput.addEventListener("input", renderFiles);
   els.clearSearchBtn.addEventListener("click", clearSearch);
-  els.statusFilter.addEventListener("change", renderFiles);
+  if(els.statusFilter) els.statusFilter.addEventListener("change", () => { activeDocStatus = els.statusFilter.value; updateDocFilterTabs(); renderFiles(); });
+  if(els.zoneFilter) els.zoneFilter.addEventListener("change", renderFiles);
+  document.querySelectorAll(".doc-filter").forEach(btn => btn.addEventListener("click", () => {
+    activeDocStatus = btn.dataset.status;
+    if(els.statusFilter) els.statusFilter.value = activeDocStatus;
+    updateDocFilterTabs();
+    renderFiles();
+  }));
   els.prevPageBtn.addEventListener("click", () => changePage(-1));
   els.nextPageBtn.addEventListener("click", () => changePage(1));
   els.clearSigBtn.addEventListener("click", () => signaturePad.clear());
@@ -241,24 +249,57 @@ function normalizeSignedName(name){ return name.replace(/_signed\.pdf$/i, "").re
 function getOriginalFiles(){ return pdfFiles.filter(f=>!f.isSignedFile); }
 function clearSearch(){
   els.searchInput.value = "";
-  els.statusFilter.value = "all";
+  if(els.zoneFilter) els.zoneFilter.value = "all";
+  activeDocStatus = "all";
+  if(els.statusFilter) els.statusFilter.value = "all";
+  updateDocFilterTabs();
   renderFiles();
   toast("ล้างการค้นหาแล้ว");
 }
 
 function filteredFiles(){
   const q = els.searchInput.value.trim().toLowerCase();
-  const status = els.statusFilter.value;
-  return pdfFiles.filter(f => (!q || f.name.toLowerCase().includes(q)) && (status === "all" || f.status === status));
+  const status = activeDocStatus || "all";
+  const zone = els.zoneFilter ? els.zoneFilter.value : "all";
+  return pdfFiles.filter(f => {
+    const matchText = !q || f.name.toLowerCase().includes(q);
+    const matchStatus = status === "all" || f.status === status;
+    const fileZone = getZoneCode(f.name);
+    const matchZone = zone === "all" || fileZone === zone;
+    return matchText && matchStatus && matchZone;
+  });
+}
+function updateDocFilterTabs(){
+  document.querySelectorAll(".doc-filter").forEach(btn => btn.classList.toggle("active", btn.dataset.status === activeDocStatus));
+}
+function updateDocFilterCounts(){
+  const originals = getOriginalFiles();
+  const signed = originals.filter(f => f.hasSignedCopy).length;
+  const unsigned = originals.length - signed;
+  if(els.tabAllCount) els.tabAllCount.textContent = originals.length.toLocaleString("th-TH");
+  if(els.tabSignedCount) els.tabSignedCount.textContent = signed.toLocaleString("th-TH");
+  if(els.tabUnsignedCount) els.tabUnsignedCount.textContent = unsigned.toLocaleString("th-TH");
+}
+function statusLabel(status){
+  if(status === "signed") return "เซ็นแล้ว";
+  if(status === "unsigned") return "ยังไม่เซ็น";
+  return "ทั้งหมด";
 }
 function renderFiles(){
+  updateDocFilterTabs();
+  updateDocFilterCounts();
   const files = filteredFiles();
-  if(!files.length){ els.fileList.className="file-list empty"; els.fileList.textContent="ไม่พบไฟล์ PDF"; return; }
+  const zone = els.zoneFilter ? els.zoneFilter.value : "all";
+  const zoneText = zone === "all" ? "ทุกเขต" : `เขต ${zone}`;
+  if(els.fileListInfo){
+    els.fileListInfo.textContent = `แสดง: ${statusLabel(activeDocStatus)} · ${zoneText} · พบ ${files.length.toLocaleString("th-TH")} รายการ`;
+  }
+  if(!files.length){ els.fileList.className="file-list empty"; els.fileList.textContent="ไม่พบไฟล์ PDF ตามเงื่อนไขที่เลือก"; return; }
   els.fileList.className="file-list"; els.fileList.innerHTML = "";
   files.forEach(f => {
     const item = document.createElement("div");
     item.className = "file-item" + (currentFile?.id === f.id ? " active" : "");
-    item.innerHTML = `<div class="file-name">${escapeHtml(f.name)}</div><div class="file-meta"><span class="badge ${f.status}">${f.status === 'signed' ? 'เซ็นแล้ว' : 'ยังไม่เซ็น'}</span><span>${formatDate(f.modifiedTime)}</span></div>`;
+    item.innerHTML = `<div class="file-name">${escapeHtml(f.name)}</div><div class="file-meta"><span class="badge ${f.status}">${f.status === 'signed' ? 'เซ็นแล้ว' : 'ยังไม่เซ็น'}</span><span>เขต ${escapeHtml(getZoneCode(f.name))}</span><span>${formatDate(f.modifiedTime)}</span></div>`;
     item.addEventListener("click", () => openFile(f));
     els.fileList.appendChild(item);
   });
@@ -270,9 +311,83 @@ function updateSummary(){
   els.totalCount.textContent = originals.length;
   els.signedCount.textContent = signed;
   els.unsignedCount.textContent = unsigned;
+  updateDocFilterCounts();
+  updateZoneSummary(originals);
   const list = originals.filter(f=>!f.hasSignedCopy);
   if(!list.length){ els.unsignedList.className="file-list empty"; els.unsignedList.textContent="ไม่มีไฟล์คงเหลือ"; return; }
-  els.unsignedList.className="file-list"; els.unsignedList.innerHTML = list.map(f=>`<div class="file-item"><div class="file-name">${escapeHtml(f.name)}</div><div class="file-meta"><span class="badge unsigned">ยังไม่เซ็น</span></div></div>`).join("");
+  els.unsignedList.className="file-list"; els.unsignedList.innerHTML = list.map(f=>`<div class="file-item"><div class="file-name">${escapeHtml(f.name)}</div><div class="file-meta"><span class="badge unsigned">ยังไม่เซ็น</span><span>เขต ${escapeHtml(getZoneCode(f.name))}</span></div></div>`).join("");
+}
+
+function getZoneCode(filename){
+  const match = String(filename || "").trim().match(/^(\d{2})/);
+  return match ? match[1] : "ไม่ระบุ";
+}
+
+function updateZoneSummary(originals){
+  if(!els.zoneSummaryBody) return;
+  const zones = Array.from({length:13}, (_, i) => String(i).padStart(2, "0"));
+  const summary = Object.fromEntries(zones.map(z => [z, { total:0, signed:0, unsigned:0 }]));
+
+  originals.forEach(file => {
+    const zone = getZoneCode(file.name);
+    if(!summary[zone]) summary[zone] = { total:0, signed:0, unsigned:0 };
+    summary[zone].total += 1;
+    if(file.hasSignedCopy) summary[zone].signed += 1;
+    else summary[zone].unsigned += 1;
+  });
+
+  const rows = zones.map(zone => {
+    const item = summary[zone];
+    const percent = item.total ? (item.signed / item.total) * 100 : 0;
+    return `
+      <tr class="zone-row" data-zone="${zone}">
+        <td><button class="zone-link" type="button" data-zone="${zone}">เขต ${zone}</button></td>
+        <td>${item.total.toLocaleString("th-TH")}</td>
+        <td>${item.signed.toLocaleString("th-TH")}</td>
+        <td>${item.unsigned.toLocaleString("th-TH")}</td>
+        <td>
+          <div class="progress-cell">
+            <div class="progress-bar"><span style="width:${percent.toFixed(2)}%"></span></div>
+            <strong>${percent.toFixed(2)}%</strong>
+          </div>
+        </td>
+      </tr>`;
+  });
+
+  const extraZones = Object.keys(summary).filter(z => !zones.includes(z)).sort();
+  extraZones.forEach(zone => {
+    const item = summary[zone];
+    const percent = item.total ? (item.signed / item.total) * 100 : 0;
+    rows.push(`
+      <tr class="zone-row" data-zone="${escapeHtml(zone)}">
+        <td><button class="zone-link" type="button" data-zone="${escapeHtml(zone)}">${escapeHtml(zone)}</button></td>
+        <td>${item.total.toLocaleString("th-TH")}</td>
+        <td>${item.signed.toLocaleString("th-TH")}</td>
+        <td>${item.unsigned.toLocaleString("th-TH")}</td>
+        <td>
+          <div class="progress-cell">
+            <div class="progress-bar"><span style="width:${percent.toFixed(2)}%"></span></div>
+            <strong>${percent.toFixed(2)}%</strong>
+          </div>
+        </td>
+      </tr>`);
+  });
+
+  els.zoneSummaryBody.innerHTML = rows.join("");
+  els.zoneSummaryBody.querySelectorAll(".zone-link").forEach(btn => {
+    btn.addEventListener("click", () => filterByZone(btn.dataset.zone));
+  });
+}
+
+function filterByZone(zone){
+  switchPage("documents");
+  els.searchInput.value = "";
+  if(els.zoneFilter) els.zoneFilter.value = zone || "all";
+  activeDocStatus = "all";
+  if(els.statusFilter) els.statusFilter.value = "all";
+  updateDocFilterTabs();
+  renderFiles();
+  toast(`แสดงเอกสารเขต ${zone}`);
 }
 async function openFile(file){
   currentFile = file; setButtons(true); renderFiles();
