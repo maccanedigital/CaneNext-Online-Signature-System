@@ -374,7 +374,7 @@ function getZoneCode(filename){
 function updateZoneSummary(originals){
   if(!els.zoneSummaryBody) return;
   const zoneCardsEl = document.getElementById("zoneOverviewCards");
-  const zones = Array.from({length:13}, (_, i) => String(i).padStart(2, "0"));
+  const zones = Array.from({length:12}, (_, i) => String(i + 1).padStart(2, "0"));
   const summary = Object.fromEntries(zones.map(z => [z, { total:0, signed:0, unsigned:0 }]));
 
   originals.forEach(file => {
@@ -385,7 +385,7 @@ function updateZoneSummary(originals){
     else summary[zone].unsigned += 1;
   });
 
-  // ตารางสรุปรายเขตเท่านั้น: ไม่แสดงการ์ดรายเขต เพื่อให้เห็นครบทุกเขตในหน้าเดียว
+  // ตารางสรุปรายเขต 01–12 เท่านั้น: ไม่แสดงการ์ดรายเขต เพื่อให้เห็นครบทุกเขตในหน้าเดียว
 
 
   const rows = zones.map(zone => {
@@ -406,24 +406,7 @@ function updateZoneSummary(originals){
       </tr>`;
   });
 
-  const extraZones = Object.keys(summary).filter(z => !zones.includes(z)).sort();
-  extraZones.forEach(zone => {
-    const item = summary[zone];
-    const percent = item.total ? (item.signed / item.total) * 100 : 0;
-    rows.push(`
-      <tr class="zone-row" data-zone="${escapeHtml(zone)}">
-        <td><button class="zone-link" type="button" data-zone="${escapeHtml(zone)}"><span class="zone-avatar">?</span><span>${escapeHtml(zone)}</span></button></td>
-        <td><span class="table-count total">${item.total.toLocaleString("th-TH")}</span></td>
-        <td><span class="table-count signed">${item.signed.toLocaleString("th-TH")}</span></td>
-        <td><span class="table-count unsigned">${item.unsigned.toLocaleString("th-TH")}</span></td>
-        <td>
-          <div class="progress-cell">
-            <div class="progress-bar"><span style="width:${percent.toFixed(2)}%"></span></div>
-            <strong>${percent.toFixed(2)}%</strong>
-          </div>
-        </td>
-      </tr>`);
-  });
+  // ไม่แสดงเขตอื่นนอกเหนือจาก 01–12 ในตารางสรุป
 
   els.zoneSummaryBody.innerHTML = rows.join("");
   els.zoneSummaryBody.querySelectorAll(".zone-link").forEach(btn => {
