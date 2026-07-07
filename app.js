@@ -9,12 +9,14 @@ let pdfDocument = null;
 let currentPage = 1;
 let totalPages = 0;
 let signaturePad;
+let pdfFiles = [];
 
 const els = {
   loginBtn: document.getElementById("loginBtn"),
   loadPdfBtn: document.getElementById("loadPdfBtn"),
   status: document.getElementById("status"),
   fileList: document.getElementById("fileList"),
+  fileSearchInput: document.getElementById("fileSearchInput"),
   pdfCanvas: document.getElementById("pdfCanvas"),
   signatureCanvas: document.getElementById("signatureCanvas"),
   prevPageBtn: document.getElementById("prevPageBtn"),
@@ -54,6 +56,7 @@ els.loginBtn.addEventListener("click", () => {
 });
 
 els.loadPdfBtn.addEventListener("click", loadPdfFiles);
+els.fileSearchInput.addEventListener("input", renderFileList);
 els.prevPageBtn.addEventListener("click", () => changePage(-1));
 els.nextPageBtn.addEventListener("click", () => changePage(1));
 els.clearSignatureBtn.addEventListener("click", () => signaturePad.clear());
@@ -93,14 +96,40 @@ async function loadPdfFiles() {
     return;
   }
 
-  data.files.forEach((file) => {
+  pdfFiles = data.files;
+  els.fileSearchInput.disabled = false;
+  els.fileSearchInput.value = "";
+  renderFileList();
+  setStatus(`พบไฟล์ PDF ${data.files.length} ไฟล์`);
+}
+
+function renderFileList() {
+  const keyword = (els.fileSearchInput.value || "").trim().toLowerCase();
+  const filteredFiles = pdfFiles.filter((file) =>
+    file.name.toLowerCase().includes(keyword)
+  );
+
+  els.fileList.innerHTML = "";
+
+  if (filteredFiles.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty-result";
+    empty.textContent = "ไม่พบไฟล์ PDF ที่ค้นหา";
+    els.fileList.appendChild(empty);
+    setStatus(keyword ? `ไม่พบไฟล์ที่มีคำว่า “${els.fileSearchInput.value}”` : "ไม่พบไฟล์ PDF");
+    return;
+  }
+
+  filteredFiles.forEach((file) => {
     const btn = document.createElement("button");
     btn.className = "file-item";
+    if (file.id === currentPdfId) btn.classList.add("active");
     btn.textContent = file.name;
     btn.onclick = () => openPdf(file, btn);
     els.fileList.appendChild(btn);
   });
-  setStatus(`พบไฟล์ PDF ${data.files.length} ไฟล์`);
+
+  setStatus(keyword ? `พบไฟล์ที่ตรงกับการค้นหา ${filteredFiles.length} ไฟล์` : `พบไฟล์ PDF ${pdfFiles.length} ไฟล์`);
 }
 
 async function openPdf(file, button) {

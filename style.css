@@ -34,6 +34,19 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 .toolbar .primary-btn { background: #0b6f8a; color: #ffffff; }
 .menu-btn { width: 100%; background: #0b6f8a; color: white; margin-bottom: 12px; }
 .status { font-size: 13px; padding: 10px; background: #eef5fb; border-radius: 12px; margin-bottom: 12px; }
+.file-search {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid #cfddea;
+  background: #ffffff;
+  color: #152033;
+  font-size: 14px;
+  outline: none;
+}
+.file-search:focus { border-color: #0b6f8a; box-shadow: 0 0 0 3px rgba(11,111,138,.12); }
+.file-search:disabled { opacity: .55; background: #f2f6fa; }
 .file-list { display: flex; flex-direction: column; gap: 8px; }
 .file-item {
   text-align: left;
@@ -45,6 +58,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   font-weight: 600;
 }
 .file-item.active { background: #dff3ef; border-color: #0a7f74; }
+.empty-result {
+  padding: 12px;
+  border-radius: 12px;
+  background: #f5f8fc;
+  color: #66768a;
+  font-size: 14px;
+  text-align: center;
+}
 .toolbar {
   display: flex;
   align-items: center;
